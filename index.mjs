@@ -106,7 +106,7 @@ async function retryWithBackoff(fn, maxAttempts = config.retry.maxAttempts) {
 function calculateHash(properties) {
   const relevant = {
     title: properties.Title?.title?.[0]?.plain_text || '',
-    brand: properties.Brand?.select?.name || '',
+    taskType: properties['Task Type']?.select?.name || 'business',
     project: properties.Project?.rich_text?.[0]?.plain_text || '',
     milestone: properties.Milestone?.rich_text?.[0]?.plain_text || '',
     priority: properties.Priority?.select?.name || '',
@@ -121,7 +121,7 @@ function extractProperties(page) {
   const props = page.properties;
   return {
     title: props.Title?.title?.[0]?.plain_text || 'Untitled',
-    brand: props.Brand?.select?.name || null,
+    taskType: props['Task Type']?.select?.name || 'business', // Default to business
     project: props.Project?.rich_text?.[0]?.plain_text || null,
     milestone: props.Milestone?.rich_text?.[0]?.plain_text || null,
     priority: props.Priority?.select?.name || null,
@@ -206,15 +206,16 @@ async function createTaskInSupabase(pageData, notionPageId, hash) {
   }
   
   return await retryWithBackoff(async () => {
-    const { data, error } = await supabase.rpc('create_task_from_capture_by_names', {
-      p_brand: pageData.brand,
-      p_project_name: pageData.project,
+    const { data, error } = await supabase.rpc('create_task_from_capture_with_task_type', {
       p_title: pageData.title,
+      p_task_type: pageData.taskType,
+      p_project_name: pageData.project,
       p_milestone_name: pageData.milestone,
       p_priority: pageData.priority,
       p_due: pageData.dueDate,
       p_assignee_email: pageData.assignee,
-      p_notion_page_id: notionPageId
+      p_notion_page_id: notionPageId,
+      p_external_hash: hash
     });
     
     if (error) throw error;
