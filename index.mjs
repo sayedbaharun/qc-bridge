@@ -106,7 +106,7 @@ async function retryWithBackoff(fn, maxAttempts = config.retry.maxAttempts) {
 function calculateHash(properties) {
   const relevant = {
     title: properties.Title?.title?.[0]?.plain_text || '',
-    taskType: properties['Task Type']?.select?.name || 'business',
+    area: properties.Area?.select?.name?.toLowerCase() || 'hikma',
     project: properties.Project?.rich_text?.[0]?.plain_text || '',
     milestone: properties.Milestone?.rich_text?.[0]?.plain_text || '',
     priority: properties.Priority?.select?.name || '',
@@ -121,7 +121,7 @@ function extractProperties(page) {
   const props = page.properties;
   return {
     title: props.Title?.title?.[0]?.plain_text || 'Untitled',
-    taskType: props['Task Type']?.select?.name || 'business', // Default to business
+    area: props.Area?.select?.name?.toLowerCase() || 'hikma', // Default to hikma
     project: props.Project?.rich_text?.[0]?.plain_text || null,
     milestone: props.Milestone?.rich_text?.[0]?.plain_text || null,
     priority: props.Priority?.select?.name || null,
@@ -206,9 +206,9 @@ async function createTaskInSupabase(pageData, notionPageId, hash) {
   }
   
   return await retryWithBackoff(async () => {
-    const { data, error } = await supabase.rpc('create_task_from_capture_with_task_type', {
+    const { data, error } = await supabase.rpc('create_task_from_capture_with_area', {
       p_title: pageData.title,
-      p_task_type: pageData.taskType,
+      p_area: pageData.area,
       p_project_name: pageData.project,
       p_milestone_name: pageData.milestone,
       p_priority: pageData.priority,
