@@ -350,22 +350,16 @@ async function needsSync(notionPageId, currentHash) {
 
 // Main sync function with comprehensive metrics
 async function syncPages() {
-  // Generate correlation ID for this sync run
-  const correlationId = logger.generateCorrelationId();
-  const syncContext = {
+  const syncOperationId = metrics.startOperation('sync_pages', {
     entity_type: 'sync',
-    dry_run: flags.dryRun,
-    correlation_id: correlationId
-  };
-  
-  const syncOperationId = metrics.startOperation('sync_pages', syncContext);
+    dry_run: flags.dryRun
+  });
   
   const startTime = Date.now();
   let created = 0, skipped = 0, errors = 0;
   
   try {
     logger.recordSyncStart();
-    logger.info('Sync run starting', syncContext);
     
     // Get cursor and query pages
     metrics.addOperationStep(syncOperationId, 'get_cursor');
@@ -495,24 +489,22 @@ async function syncPages() {
     logger.recordSyncComplete(created, skipped, errors);
     
     const summary = {
-      ...syncContext,
       pages_processed: pages.length,
       tasks_created: created,
       pages_skipped: skipped,
       errors_count: errors,
       duration_ms: duration,
-      duration_human: logger.formatDuration(duration),
-      success_rate: pages.length > 0 ? Math.round(((created + skipped) / pages.length) * 100) + '%' : '100%'
+      success_rate: pages.length > 0 ? (created + skipped) / pages.length : 1
     };
     
-    logger.info('Sync run completed', summary);
+    logger.info('Sync completed', summary);
     
-    // Send Slack alert for any errors (per operator review feedback)
-    if (errors > 0) {
-      logger.warn('Sync run completed with errors', {
-        ...summary,
-        alert_reason: 'errors_detected',
-        recommendation: errors > pages.length * 0.2 ? 'Check Notion API or database connectivity' : 'Monitor for patterns'
+    // Send alert if error rate is high
+    if (errors > 0 && errors / pages.length > 0.2) {
+      logger.warn('High error rate detected', {
+        error_rate: Math.round((errors / pages.length) * 100) + '%',
+        total_errors: errors,
+        total_pages: pages.length
       });
     }
     

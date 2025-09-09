@@ -6,9 +6,10 @@
   "main": "index.mjs",
   "scripts": {
     "start": "node index.mjs",
-    "once": "node index.mjs --once",
-    "dry-run": "node index.mjs --dry-run",
-    "dev": "node index.mjs --verbose"
+    "once": "node index.mjs --once --verbose",
+    "dry-run": "node index.mjs --once --dry-run --verbose",
+    "dev": "node index.mjs --verbose",
+    "server": "node index.mjs --server"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
