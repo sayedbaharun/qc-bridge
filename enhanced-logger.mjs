@@ -5,8 +5,9 @@ export class EnhancedLogger {
   constructor(config = {}) {
     this.config = {
       level: config.level || 'info',
-      slackWebhook: config.slackWebhook || process.env.SLACK_WEBHOOK_URL,
-      enableSlack: config.enableSlack !== false,
+      notionAlertsDbId: config.notionAlertsDbId || process.env.NOTION_ALERTS_DATABASE_ID,
+      notionToken: config.notionToken || process.env.NOTION_TOKEN,
+      enableNotionAlerts: config.enableNotionAlerts !== false,
       serviceName: config.serviceName || 'qc-bridge',
       environment: config.environment || process.env.NODE_ENV || 'production',
       version: config.version || '2.0.0'
@@ -63,17 +64,11 @@ export class EnhancedLogger {
     return createHash('md5').update(`${Date.now()}-${Math.random()}`).digest('hex').substring(0, 8);
   }
 
-  async sendToSlack(level, message, context = {}) {
-    if (!this.config.enableSlack || !this.config.slackWebhook) return;
+  async sendToNotion(level, message, context = {}) {
+    if (!this.config.enableNotionAlerts || !this.config.notionAlertsDbId) return;
     
-    // Only send warn, error, fatal to Slack
+    // Only send warn, error, fatal to Notion
     if (!['warn', 'error', 'fatal'].includes(level)) return;
-
-    const color = {
-      warn: 'warning',
-      error: 'danger',
-      fatal: 'danger'
-    }[level] || 'good';
 
     const emoji = {
       warn: '⚠️',
@@ -81,63 +76,51 @@ export class EnhancedLogger {
       fatal: '💥'
     }[level] || 'ℹ️';
 
-    const payload = {
-      username: 'QC Bridge Monitor',
-      icon_emoji: ':robot_face:',
-      attachments: [{
-        color,
-        title: `${emoji} ${level.toUpperCase()}: ${message}`,
-        fields: [
-          {
-            title: 'Service',
-            value: this.config.serviceName,
-            short: true
-          },
-          {
-            title: 'Environment',
-            value: this.config.environment,
-            short: true
-          },
-          {
-            title: 'Timestamp',
-            value: new Date().toISOString(),
-            short: true
-          }
-        ],
-        footer: `QC Bridge v${this.config.version}`,
-        ts: Math.floor(Date.now() / 1000)
-      }]
-    };
-
-    // Add context fields if available
-    if (context.error) {
-      payload.attachments[0].fields.push({
-        title: 'Error Details',
-        value: `\`\`\`${context.error}\`\`\``,
-        short: false
-      });
-    }
-
-    if (context.taskId || context.pageId) {
-      payload.attachments[0].fields.push({
-        title: 'Resource',
-        value: context.taskId ? `Task: ${context.taskId}` : `Page: ${context.pageId}`,
-        short: true
-      });
-    }
+    const priority = {
+      warn: '🟡 P2',
+      error: '🔴 P1', 
+      fatal: '🔴 P1'
+    }[level];
 
     try {
-      const response = await fetch(this.config.slackWebhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const { Client } = await import('@notionhq/client');
+      const notion = new Client({ auth: this.config.notionToken });
+      
+      await notion.pages.create({
+        parent: { database_id: this.config.notionAlertsDbId },
+        properties: {
+          'Title': {
+            title: [{ text: { content: `${emoji} ${level.toUpperCase()}: ${message}` } }]
+          },
+          'Level': {
+            select: { name: level.toUpperCase() }
+          },
+          'Priority': {
+            select: { name: priority }
+          },
+          'Service': {
+            rich_text: [{ text: { content: this.config.serviceName } }]
+          },
+          'Environment': {
+            select: { name: this.config.environment }
+          },
+          'Error Details': {
+            rich_text: [{ text: { content: JSON.stringify(context, null, 2) } }]
+          },
+          'Correlation ID': {
+            rich_text: [{ text: { content: context.correlation_id || 'N/A' } }]
+          },
+          'Status': {
+            select: { name: 'Open' }
+          },
+          'Created': {
+            date: { start: new Date().toISOString() }
+          }
+        }
       });
       
-      if (!response.ok) {
-        console.error('Failed to send Slack alert:', response.statusText);
-      }
     } catch (error) {
-      console.error('Slack alert error:', error.message);
+      console.error('Notion alert error:', error.message);
     }
   }
 
@@ -157,7 +140,7 @@ export class EnhancedLogger {
     if (!this.shouldLog('warn')) return;
     const logEntry = this.formatMessage('warn', message, context);
     console.warn(JSON.stringify(logEntry));
-    this.sendToSlack('warn', message, context);
+    this.sendToNotion('warn', message, context);
   }
 
   error(message, context = {}) {
@@ -165,14 +148,14 @@ export class EnhancedLogger {
     this.metrics.errors_count++;
     const logEntry = this.formatMessage('error', message, context);
     console.error(JSON.stringify(logEntry));
-    this.sendToSlack('error', message, context);
+    this.sendToNotion('error', message, context);
   }
 
   fatal(message, context = {}) {
     this.metrics.errors_count++;
     const logEntry = this.formatMessage('fatal', message, context);
     console.error(JSON.stringify(logEntry));
-    this.sendToSlack('fatal', message, context);
+    this.sendToNotion('fatal', message, context);
   }
 
   // Metrics methods
