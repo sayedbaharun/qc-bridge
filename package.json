@@ -9,7 +9,14 @@
     "once": "node index.mjs --once --verbose",
     "dry-run": "node index.mjs --once --dry-run --verbose",
     "dev": "node index.mjs --verbose",
-    "server": "node index.mjs --server"
+    "server": "node index.mjs --server",
+    "setup-notion": "node setup-notion-databases.mjs",
+    "clean-slate": "node clean-slate.mjs",
+    "setup-domains": "node setup-domains-structure.mjs",
+    "setup-domains-simple": "node setup-domains-simple.mjs",
+    "setup-complete": "node setup-complete.mjs",
+    "setup-final": "node setup-final.mjs",
+    "setup-proper": "node setup-proper-structure.mjs"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
