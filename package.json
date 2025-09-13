@@ -16,7 +16,8 @@
     "setup-domains-simple": "node setup-domains-simple.mjs",
     "setup-complete": "node setup-complete.mjs",
     "setup-final": "node setup-final.mjs",
-    "setup-proper": "node setup-proper-structure.mjs"
+    "setup-proper": "node setup-proper-structure.mjs",
+    "sync:once": "bash scripts/sync-once.sh"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
