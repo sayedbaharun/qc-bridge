@@ -580,17 +580,23 @@ async function syncPages() {
             await makeApiCall('supabase', 'update_integration', async () => {
               await supabase
                 .from('integrations_notion')
-                .update({ 
-                  external_hash: hash, 
-                  last_seen_at: new Date().toISOString() 
-                })
-                .eq('notion_page_id', page.id);
+                .upsert({
+                  notion_page_id: page.id,
+                  task_id: result.task_id,
+                  external_hash: hash,
+                  last_seen_at: new Date().toISOString()
+                }, { onConflict: 'notion_page_id' });
             });
           }
           
-          // Update Notion page
-          metrics.addOperationStep(pageOperationId, 'update_notion_page');
-          await updateNotionPage(page.id, result.task_id);
+          // Update Notion page only if needed to avoid bumping last_edited_time unnecessarily
+          const needNotionUpdate = props.supabaseTaskId !== result.task_id || !props.linked;
+          if (needNotionUpdate) {
+            metrics.addOperationStep(pageOperationId, 'update_notion_page');
+            await updateNotionPage(page.id, result.task_id);
+          } else {
+            metrics.addOperationStep(pageOperationId, 'skip_update_notion_page', { reason: 'already_linked' });
+          }
           
           logger.info('Task processed', { 
             title: props.title,
@@ -600,10 +606,11 @@ async function syncPages() {
           });
           
           metrics.completeOperation(pageOperationId, { 
-            created: true, 
+            created: !!result?.created,
+            updated: !!result?.updated,
             task_id: result.task_id 
           });
-          created++;
+          if (result?.created) created++;
         }
         
         // Rate limiting and memory tracking
