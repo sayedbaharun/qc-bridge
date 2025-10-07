@@ -11,9 +11,6 @@ RUN npm ci --only=production
 # Copy application code
 COPY . .
 
-# Build the application (if needed)
-RUN npm run build || true
-
 # Expose port (adjust if needed)
 EXPOSE 3000
 
